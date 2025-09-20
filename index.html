@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Viewer Hub - Live Gaming Streams</title>
-    <meta name="description" content="Watch live gaming streams">
+    <title>Stream Viewer Hub - Multi-Platform Live Streams</title>
+    <meta name="description" content="Watch live gaming streams from multiple platforms">
     <meta name="robots" content="noindex, nofollow">
     
     <style>
@@ -24,6 +24,14 @@
             background: linear-gradient(90deg, #9147ff 0%, #772ce8 100%);
             padding: 15px 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header.youtube {
+            background: linear-gradient(90deg, #ff0000 0%, #cc0000 100%);
+        }
+        
+        .header.tiktok {
+            background: linear-gradient(90deg, #000000 0%, #EE1D52 50%, #69C9D0 100%);
         }
         
         .header h1 {
@@ -59,7 +67,7 @@
             height: 100%;
         }
         
-        #twitchEmbed {
+        #streamEmbed {
             width: 100%;
             height: 100%;
             border: none;
@@ -93,6 +101,14 @@
             animation: pulse 2s infinite;
         }
         
+        .live-indicator.youtube {
+            background: #ff0000;
+        }
+        
+        .live-indicator.tiktok {
+            background: #EE1D52;
+        }
+        
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
@@ -102,6 +118,32 @@
             font-size: 1.1em;
             font-weight: 600;
             color: #bf94ff;
+        }
+        
+        .channel-name.youtube {
+            color: #ff0000;
+        }
+        
+        .channel-name.tiktok {
+            color: #EE1D52;
+        }
+        
+        .platform-badge {
+            background: #9147ff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .platform-badge.youtube {
+            background: #ff0000;
+        }
+        
+        .platform-badge.tiktok {
+            background: #000000;
         }
         
         .viewer-count {
@@ -213,8 +255,8 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🎮 Stream Viewer Hub</h1>
+        <div class="header" id="header">
+            <h1>🎮 Multi-Platform Stream Hub</h1>
             <div class="status" id="status">Initializing stream...</div>
         </div>
         
@@ -226,12 +268,12 @@
             
             <div class="player-wrapper" id="playerWrapper" style="display: none;">
                 <iframe
-                    id="twitchEmbed"
+                    id="streamEmbed"
                     src=""
                     frameborder="0"
-                    allowfullscreen="false"
+                    allowfullscreen="true"
                     scrolling="no"
-                    allow="autoplay; fullscreen">
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
                 </iframe>
             </div>
             
@@ -243,7 +285,8 @@
         
         <div class="info-bar">
             <div class="channel-info">
-                <div class="live-indicator">LIVE</div>
+                <div class="live-indicator" id="liveIndicator">LIVE</div>
+                <span class="platform-badge" id="platformBadge">PLATFORM</span>
                 <div class="channel-name" id="channelName">Loading...</div>
                 <div class="viewer-count">
                     Viewers: <span id="viewerCount">--</span>
@@ -271,6 +314,7 @@
         // Configuration
         const config = {
             defaultChannel: 'monstercat',
+            defaultPlatform: 'twitch',
             loadTimeout: 10000,
             statsUpdateInterval: 1000,
             viewerCountVariation: true,
@@ -278,9 +322,15 @@
             muteByDefault: true
         };
         
-        // Get parameters
+        // Get parameters from URL
         const params = new URLSearchParams(window.location.search);
-        const channel = params.get('channel') || config.defaultChannel;
+        
+        // ========================================
+        // 🎯 PARAMETRI PRINCIPALI - MODIFICA QUI!
+        // ========================================
+        const platform = params.get('platform') || config.defaultPlatform; // 'twitch', 'youtube', 'tiktok'
+        const channel = params.get('channel') || params.get('videoId') || config.defaultChannel;
+        const videoId = params.get('videoId') || params.get('v'); // Per YouTube video ID
         const muted = params.get('muted') !== 'false';
         const autoplay = params.get('autoplay') !== 'false';
         const controls = params.get('controls') !== 'false';
@@ -294,31 +344,127 @@
         let isLoaded = false;
         let viewerBase = Math.floor(Math.random() * 5000) + 1000;
         
-        // Initialize embed
+        // ========================================
+        // 🔥 FUNZIONE PRINCIPALE - GENERA EMBED URL
+        // ========================================
+        function getEmbedUrl(platform, channelOrVideoId) {
+            let embedUrl = '';
+            
+            switch(platform.toLowerCase()) {
+                // ========================================
+                // TWITCH EMBED
+                // ========================================
+                case 'twitch':
+                    const twitchParams = new URLSearchParams({
+                        channel: channelOrVideoId,
+                        parent: parentDomain,
+                        muted: muted,
+                        autoplay: autoplay,
+                        controls: controls,
+                        layout: layout,
+                        theme: 'dark',
+                        width: '100%',
+                        height: '100%'
+                    });
+                    embedUrl = `https://player.twitch.tv/?${twitchParams.toString()}`;
+                    break;
+                
+                // ========================================
+                // YOUTUBE EMBED
+                // ========================================
+                case 'youtube':
+                    // Supporta sia video ID che live streams
+                    let ytVideoId = videoId || channelOrVideoId;
+                    
+                    // Se è un URL completo, estrai l'ID
+                    if (ytVideoId.includes('youtube.com') || ytVideoId.includes('youtu.be')) {
+                        const ytMatch = ytVideoId.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
+                        if (ytMatch) ytVideoId = ytMatch[1];
+                    }
+                    
+                    const ytParams = new URLSearchParams({
+                        autoplay: autoplay ? '1' : '0',
+                        mute: muted ? '1' : '0',
+                        controls: controls ? '1' : '0',
+                        modestbranding: '1',
+                        rel: '0',
+                        showinfo: '0',
+                        iv_load_policy: '3',
+                        enablejsapi: '1',
+                        origin: window.location.origin
+                    });
+                    
+                    // Per live stream di un canale specifico
+                    if (channelOrVideoId.startsWith('@') || channelOrVideoId.startsWith('UC')) {
+                        embedUrl = `https://www.youtube.com/embed/live_stream?channel=${channelOrVideoId}&${ytParams.toString()}`;
+                    } else {
+                        embedUrl = `https://www.youtube.com/embed/${ytVideoId}?${ytParams.toString()}`;
+                    }
+                    break;
+                
+                // ========================================
+                // TIKTOK EMBED (PIÙ LIMITATO)
+                // ========================================
+                case 'tiktok':
+                    // TikTok non ha un embed ufficiale per le live
+                    // Opzione 1: Usa l'URL diretto (potrebbe non funzionare in iframe)
+                    let tiktokUser = channelOrVideoId;
+                    
+                    // Rimuovi @ se presente
+                    if (tiktokUser.startsWith('@')) {
+                        tiktokUser = tiktokUser.substring(1);
+                    }
+                    
+                    // Per live TikTok (metodo sperimentale)
+                    embedUrl = `https://www.tiktok.com/@${tiktokUser}/live`;
+                    
+                    // Alternativa: Usa un iframe wrapper
+                    // embedUrl = `https://www.tiktok.com/embed/v2/${videoId}`;
+                    
+                    console.warn('TikTok live embed è limitato. Potrebbe non funzionare correttamente in iframe.');
+                    break;
+                
+                default:
+                    console.error('Platform not supported:', platform);
+                    return null;
+            }
+            
+            return embedUrl;
+        }
+        
+        // ========================================
+        // INIZIALIZZA EMBED
+        // ========================================
         function initializeEmbed() {
             try {
-                // Update UI
+                // Update UI based on platform
+                updateUIForPlatform(platform);
+                
+                // Update channel/video info
                 document.getElementById('channelName').textContent = channel;
                 document.getElementById('status').textContent = `Connecting to ${channel}...`;
                 
-                // Build Twitch embed URL
-                const embedParams = new URLSearchParams({
-                    channel: channel,
-                    parent: parentDomain,
-                    muted: muted,
-                    autoplay: autoplay,
-                    controls: controls,
-                    layout: layout,
-                    theme: 'dark',
-                    width: '100%',
-                    height: '100%'
-                });
+                // ========================================
+                // 🎯 QUI VIENE GENERATO L'URL DELL'EMBED!
+                // ========================================
+                const embedUrl = getEmbedUrl(platform, channel);
                 
-                const embedUrl = `https://player.twitch.tv/?${embedParams.toString()}`;
+                if (!embedUrl) {
+                    showError();
+                    return;
+                }
+                
+                console.log('Loading embed:', embedUrl);
                 
                 // Set iframe source
-                const iframe = document.getElementById('twitchEmbed');
+                const iframe = document.getElementById('streamEmbed');
                 iframe.src = embedUrl;
+                
+                // Special handling for TikTok
+                if (platform.toLowerCase() === 'tiktok') {
+                    // TikTok potrebbe bloccare iframe, proviamo alternative
+                    iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-forms';
+                }
                 
                 // Handle load success
                 iframe.onload = function() {
@@ -333,8 +479,24 @@
                         startStatsUpdates();
                         
                         // Log success
-                        console.log('Stream loaded successfully:', channel);
+                        console.log('Stream loaded successfully:', {
+                            platform: platform,
+                            channel: channel,
+                            url: embedUrl
+                        });
                     }, 1000);
+                };
+                
+                // Handle iframe errors
+                iframe.onerror = function(e) {
+                    console.error('Iframe load error:', e);
+                    if (platform.toLowerCase() === 'tiktok') {
+                        // Fallback per TikTok: apri in nuova finestra
+                        console.log('TikTok iframe failed, trying direct navigation...');
+                        window.location.href = embedUrl;
+                    } else {
+                        showError();
+                    }
                 };
                 
                 // Handle load timeout
@@ -347,6 +509,46 @@
             } catch (error) {
                 console.error('Embed initialization error:', error);
                 showError();
+            }
+        }
+        
+        // Update UI for different platforms
+        function updateUIForPlatform(platform) {
+            const header = document.getElementById('header');
+            const liveIndicator = document.getElementById('liveIndicator');
+            const channelName = document.getElementById('channelName');
+            const platformBadge = document.getElementById('platformBadge');
+            
+            // Remove all platform classes
+            header.className = 'header';
+            liveIndicator.className = 'live-indicator';
+            channelName.className = 'channel-name';
+            platformBadge.className = 'platform-badge';
+            
+            // Add platform-specific classes
+            switch(platform.toLowerCase()) {
+                case 'youtube':
+                    header.classList.add('youtube');
+                    liveIndicator.classList.add('youtube');
+                    channelName.classList.add('youtube');
+                    platformBadge.classList.add('youtube');
+                    platformBadge.textContent = 'YOUTUBE';
+                    document.querySelector('.header h1').textContent = '📺 YouTube Stream Hub';
+                    break;
+                
+                case 'tiktok':
+                    header.classList.add('tiktok');
+                    liveIndicator.classList.add('tiktok');
+                    channelName.classList.add('tiktok');
+                    platformBadge.classList.add('tiktok');
+                    platformBadge.textContent = 'TIKTOK';
+                    document.querySelector('.header h1').textContent = '🎵 TikTok Stream Hub';
+                    break;
+                
+                default: // Twitch
+                    platformBadge.textContent = 'TWITCH';
+                    document.querySelector('.header h1').textContent = '🎮 Twitch Stream Hub';
+                    break;
             }
         }
         
@@ -378,7 +580,9 @@
                 
                 // Simulate quality changes
                 if (Math.random() < 0.01) {
-                    const qualities = ['1080p60', '720p60', '720p', '480p', '360p', 'Auto'];
+                    const qualities = platform === 'youtube' 
+                        ? ['1080p', '720p', '480p', '360p', '144p', 'Auto']
+                        : ['1080p60', '720p60', '720p', '480p', '360p', 'Auto'];
                     document.getElementById('quality').textContent = 
                         qualities[Math.floor(Math.random() * qualities.length)];
                 }
@@ -424,10 +628,11 @@
             simulateActivity();
             
             // Add some metadata for legitimacy
-            document.title = `${channel} - Stream Viewer Hub`;
+            document.title = `${channel} - ${platform} Stream Hub`;
             
             // Log page lifecycle
             console.log('Page initialized:', {
+                platform: platform,
                 channel: channel,
                 parent: parentDomain,
                 timestamp: new Date().toISOString()
@@ -437,10 +642,34 @@
         // Handle page unload
         window.addEventListener('beforeunload', function() {
             console.log('Stream session ended:', {
+                platform: platform,
                 channel: channel,
                 duration: Date.now() - startTime
             });
         });
+        
+        // ========================================
+        // 📝 ESEMPI DI URL DA USARE:
+        // ========================================
+        /*
+        TWITCH:
+        - tuosito.com?platform=twitch&channel=shroud
+        - tuosito.com?platform=twitch&channel=pokimane
+        
+        YOUTUBE:
+        - tuosito.com?platform=youtube&videoId=jfKfPfyJRdk  (lofi girl live)
+        - tuosito.com?platform=youtube&channel=UC_x5XG1OV2P6uZZ5FSM9Ttw (NASA live)
+        - tuosito.com?platform=youtube&videoId=VIDEO_ID_HERE
+        
+        TIKTOK:
+        - tuosito.com?platform=tiktok&channel=khaby.lame
+        - tuosito.com?platform=tiktok&channel=charlidamelio
+        
+        CON PARAMETRI EXTRA:
+        - &muted=false (per non mutare)
+        - &autoplay=false (per non avviare automaticamente)
+        - &controls=false (per nascondere controlli)
+        */
     </script>
 </body>
 </html>
