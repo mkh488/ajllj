@@ -174,7 +174,6 @@
             font-weight: 600;
         }
         
-        /* Loading animation */
         .loading {
             position: absolute;
             top: 50%;
@@ -198,7 +197,6 @@
             to { transform: rotate(360deg); }
         }
         
-        /* Error state */
         .error {
             position: absolute;
             top: 50%;
@@ -214,7 +212,6 @@
             margin-bottom: 10px;
         }
         
-        /* Mobile responsive */
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 1.2em;
@@ -233,7 +230,6 @@
             }
         }
         
-        /* Hide scrollbar but keep functionality */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -269,7 +265,7 @@
             <div class="player-wrapper" id="playerWrapper" style="display: none;">
                 <iframe
                     id="streamEmbed"
-                    src="https://player.twitch.tv/?channel=westerlymarina&parent=https://mkh488.github.io/ajllj&muted=true"
+                    src=""
                     frameborder="0"
                     allowfullscreen="true"
                     scrolling="no"
@@ -313,7 +309,7 @@
     <script>
         // Configuration
         const config = {
-            defaultChannel: 'monstercat',
+            defaultChannel: 'shroud',  // Canale default se nessuno è specificato
             defaultPlatform: 'twitch',
             loadTimeout: 10000,
             statsUpdateInterval: 1000,
@@ -325,55 +321,44 @@
         // Get parameters from URL
         const params = new URLSearchParams(window.location.search);
         
-        // ========================================
-        // 🎯 PARAMETRI PRINCIPALI - MODIFICA QUI!
-        // ========================================
-        const platform = params.get('platform') || config.defaultPlatform; // 'twitch', 'youtube', 'tiktok'
+        // Parametri principali
+        const platform = params.get('platform') || config.defaultPlatform;
         const channel = params.get('channel') || params.get('videoId') || config.defaultChannel;
-        const videoId = params.get('videoId') || params.get('v'); // Per YouTube video ID
+        const videoId = params.get('videoId') || params.get('v');
         const muted = params.get('muted') !== 'false';
         const autoplay = params.get('autoplay') !== 'false';
         const controls = params.get('controls') !== 'false';
         const layout = params.get('layout') || 'video';
         
-        // Get parent domain (CRITICAL for Twitch embed)
-        const parentDomain = window.location.hostname;
+        // Get parent domain (CRITICAL for Twitch embed) - SOLO IL DOMINIO
+        const parentDomain = window.location.hostname || 'localhost';
         
         // State
         let startTime = Date.now();
         let isLoaded = false;
         let viewerBase = Math.floor(Math.random() * 5000) + 1000;
         
-        // ========================================
-        // 🔥 FUNZIONE PRINCIPALE - GENERA EMBED URL
-        // ========================================
+        // Funzione principale - genera embed URL
         function getEmbedUrl(platform, channelOrVideoId) {
             let embedUrl = '';
             
             switch(platform.toLowerCase()) {
-                // ========================================
                 // TWITCH EMBED
-                // ========================================
                 case 'twitch':
                     const twitchParams = new URLSearchParams({
                         channel: channelOrVideoId,
-                        parent: parentDomain,
-                        muted: muted,
-                        autoplay: autoplay,
-                        controls: controls,
+                        parent: parentDomain,  // SOLO IL DOMINIO, non URL completo!
+                        muted: muted.toString(),
+                        autoplay: autoplay.toString(),
+                        controls: controls.toString(),
                         layout: layout,
-                        theme: 'dark',
-                        width: '100%',
-                        height: '100%'
+                        theme: 'dark'
                     });
                     embedUrl = `https://player.twitch.tv/?${twitchParams.toString()}`;
                     break;
                 
-                // ========================================
                 // YOUTUBE EMBED
-                // ========================================
                 case 'youtube':
-                    // Supporta sia video ID che live streams
                     let ytVideoId = videoId || channelOrVideoId;
                     
                     // Se è un URL completo, estrai l'ID
@@ -402,12 +387,8 @@
                     }
                     break;
                 
-                // ========================================
-                // TIKTOK EMBED (PIÙ LIMITATO)
-                // ========================================
+                // TIKTOK EMBED
                 case 'tiktok':
-                    // TikTok non ha un embed ufficiale per le live
-                    // Opzione 1: Usa l'URL diretto (potrebbe non funzionare in iframe)
                     let tiktokUser = channelOrVideoId;
                     
                     // Rimuovi @ se presente
@@ -417,9 +398,6 @@
                     
                     // Per live TikTok (metodo sperimentale)
                     embedUrl = `https://www.tiktok.com/@${tiktokUser}/live`;
-                    
-                    // Alternativa: Usa un iframe wrapper
-                    // embedUrl = `https://www.tiktok.com/embed/v2/${videoId}`;
                     
                     console.warn('TikTok live embed è limitato. Potrebbe non funzionare correttamente in iframe.');
                     break;
@@ -432,9 +410,7 @@
             return embedUrl;
         }
         
-        // ========================================
-        // INIZIALIZZA EMBED
-        // ========================================
+        // Inizializza embed
         function initializeEmbed() {
             try {
                 // Update UI based on platform
@@ -444,9 +420,7 @@
                 document.getElementById('channelName').textContent = channel;
                 document.getElementById('status').textContent = `Connecting to ${channel}...`;
                 
-                // ========================================
-                // 🎯 QUI VIENE GENERATO L'URL DELL'EMBED!
-                // ========================================
+                // Genera URL dell'embed
                 const embedUrl = getEmbedUrl(platform, channel);
                 
                 if (!embedUrl) {
@@ -455,6 +429,7 @@
                 }
                 
                 console.log('Loading embed:', embedUrl);
+                console.log('Parent domain:', parentDomain);
                 
                 // Set iframe source
                 const iframe = document.getElementById('streamEmbed');
@@ -462,7 +437,6 @@
                 
                 // Special handling for TikTok
                 if (platform.toLowerCase() === 'tiktok') {
-                    // TikTok potrebbe bloccare iframe, proviamo alternative
                     iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-forms';
                 }
                 
@@ -491,7 +465,6 @@
                 iframe.onerror = function(e) {
                     console.error('Iframe load error:', e);
                     if (platform.toLowerCase() === 'tiktok') {
-                        // Fallback per TikTok: apri in nuova finestra
                         console.log('TikTok iframe failed, trying direct navigation...');
                         window.location.href = embedUrl;
                     } else {
@@ -648,29 +621,20 @@
             });
         });
         
-        // ========================================
-        // 📝 ESEMPI DI URL DA USARE:
-        // ========================================
         /*
+        ESEMPI DI URL DA USARE:
+        
         TWITCH:
-        - tuosito.com?platform=twitch&channel=shroud
-        - tuosito.com?platform=twitch&channel=pokimane
+        - https://mkh488.github.io/ajllj?platform=twitch&channel=shroud
+        - https://mkh488.github.io/ajllj?platform=twitch&channel=pokimane
         
         YOUTUBE:
-        - tuosito.com?platform=youtube&videoId=jfKfPfyJRdk  (lofi girl live)
-        - tuosito.com?platform=youtube&channel=UC_x5XG1OV2P6uZZ5FSM9Ttw (NASA live)
-        - tuosito.com?platform=youtube&videoId=VIDEO_ID_HERE
+        - https://mkh488.github.io/ajllj?platform=youtube&videoId=jfKfPfyJRdk
+        - https://mkh488.github.io/ajllj?platform=youtube&channel=UC_x5XG1OV2P6uZZ5FSM9Ttw
         
         TIKTOK:
-        - tuosito.com?platform=tiktok&channel=khaby.lame
-        - tuosito.com?platform=tiktok&channel=charlidamelio
-        
-        CON PARAMETRI EXTRA:
-        - &muted=false (per non mutare)
-        - &autoplay=false (per non avviare automaticamente)
-        - &controls=false (per nascondere controlli)
+        - https://mkh488.github.io/ajllj?platform=tiktok&channel=khaby.lame
         */
     </script>
 </body>
 </html>
-
